@@ -3,12 +3,18 @@ import { NextResponse } from 'next/server';
 import { getTeamById } from '@/lib/server/repository';
 import { readSession } from '@/lib/server/session';
 
-export async function GET(_: Request, context: { params: { teamId: string } }) {
+export async function GET(
+  _: Request,
+  { params }: { params: Promise<{ teamId: string }> }
+) {
   const session = await readSession();
-  const { teamId } = context.params;
+  const { teamId } = await params;
+
   const team = getTeamById(teamId, session);
+
   if (!team) {
     return NextResponse.json({ message: 'Equipo no disponible' }, { status: 404 });
   }
+
   return NextResponse.json({ team });
 }
