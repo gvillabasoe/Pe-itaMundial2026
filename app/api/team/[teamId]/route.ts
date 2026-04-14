@@ -5,11 +5,10 @@ import { readSession } from '@/lib/server/session';
 
 export async function GET(
   _: Request,
-  { params }: { params: Promise<{ teamId: string }> }
+  { params }: { params: Promise<{ teamId: string }> },
 ) {
   const session = await readSession();
   const { teamId } = await params;
-
   const team = getTeamById(teamId, session);
 
   if (!team) {
