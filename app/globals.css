@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: #050608;
+  color: #F6F7FB;
+}
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: #07090D; }
+::-webkit-scrollbar-thumb { background: #12171D; border-radius: 2px; }
+
+/* Utility layers */
+@layer components {
+  .card {
+    @apply rounded-[14px] border border-white/5 p-4 transition-all;
+    background: #0D1014;
+  }
+  .card:hover {
+    border-color: rgba(255,255,255,0.1);
+  }
+  .card-glow {
+    box-shadow: 0 0 30px rgba(212,175,55,0.08);
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-wide;
+  }
+  .badge-gold { background: rgba(212,175,55,0.15); color: #FFD87A; }
+  .badge-green { background: #042B22; color: #27E6AC; }
+  .badge-amber { background: rgba(223,190,56,0.12); color: #DFBE38; }
+  .badge-red { background: #2C0714; color: #FF7AA5; }
+  .badge-muted { background: rgba(152,163,184,0.1); color: #98A3B8; }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-[10px] text-sm font-semibold cursor-pointer transition-all border-none;
+    font-family: inherit;
+  }
+  .btn-primary { background: #D4AF37; color: #050608; }
+  .btn-primary:hover { background: #FFD87A; transform: translateY(-1px); }
+  .btn-ghost {
+    background: rgba(255,255,255,0.06);
+    color: #F6F7FB;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .btn-ghost:hover { background: rgba(255,255,255,0.1); }
+
+  .input-field {
+    @apply w-full px-3.5 py-3 rounded-[10px] text-sm outline-none transition-colors;
+    background: #07090D;
+    border: 1px solid rgba(255,255,255,0.08);
+    color: #F6F7FB;
+    font-family: inherit;
+  }
+  .input-field:focus { border-color: #D4AF37; }
+  .input-field::placeholder { color: #98A3B8; }
+
+  .pill {
+    @apply px-3.5 py-1.5 rounded-full text-xs font-medium cursor-pointer transition-all whitespace-nowrap;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: #0B0B0B;
+    color: #98A3B8;
+    font-family: inherit;
+  }
+  .pill.active {
+    background: rgba(212,175,55,0.15);
+    color: #FFD87A;
+    border-color: #D4AF37;
+  }
+
+  .nav-bottom {
+    @apply fixed bottom-0 left-0 right-0 z-50 flex justify-around;
+    background: rgba(5,6,8,0.95);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid rgba(255,255,255,0.06);
+    padding: 6px 0 env(safe-area-inset-bottom, 6px);
+  }
+}
