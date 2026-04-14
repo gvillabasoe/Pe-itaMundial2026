@@ -3,13 +3,16 @@ import { NextResponse } from 'next/server';
 import { getMiniPoll } from '@/lib/server/repository';
 import { readSession, writeSession } from '@/lib/server/session';
 
-export async function POST(request: Request, context: { params: { pollId: string } }) {
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ pollId: string }> },
+) {
   const session = await readSession();
   if (!session) {
     return NextResponse.json({ message: 'Acceso restringido' }, { status: 401 });
   }
 
-  const { pollId } = context.params;
+  const { pollId } = await params;
   const body = (await request.json().catch(() => null)) as { answerId?: string } | null;
   const answerId = body?.answerId?.trim() ?? '';
   const poll = getMiniPoll(session);
