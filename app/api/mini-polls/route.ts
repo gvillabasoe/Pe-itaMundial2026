@@ -5,10 +5,9 @@ import { readSession, writeSession } from '@/lib/server/session';
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ pollId: string }> }
+  { params }: { params: Promise<{ pollId: string }> },
 ) {
   const session = await readSession();
-
   if (!session) {
     return NextResponse.json({ message: 'Acceso restringido' }, { status: 401 });
   }
@@ -16,7 +15,6 @@ export async function POST(
   const { pollId } = await params;
   const body = (await request.json().catch(() => null)) as { answerId?: string } | null;
   const answerId = body?.answerId?.trim() ?? '';
-
   const poll = getMiniPoll(session);
 
   if (!poll || poll.id !== pollId) {
@@ -28,7 +26,6 @@ export async function POST(
   }
 
   const valid = poll.answers.some((answer) => answer.id === answerId);
-
   if (!valid) {
     return NextResponse.json({ message: 'Respuesta no válida' }, { status: 400 });
   }
