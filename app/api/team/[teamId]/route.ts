@@ -10,10 +10,8 @@ export async function GET(
   const session = await readSession();
   const { teamId } = await params;
   const team = getTeamById(teamId, session);
-
   if (!team) {
     return NextResponse.json({ message: 'Equipo no disponible' }, { status: 404 });
   }
-
   return NextResponse.json({ team });
 }
