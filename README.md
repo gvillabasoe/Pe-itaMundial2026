@@ -34,4 +34,3 @@ Copia `.env.example` a `.env.local` si quieres activar API-FOOTBALL.
 - `npm run build`
 - `npm run start`
 - `npm run typecheck`
-  
