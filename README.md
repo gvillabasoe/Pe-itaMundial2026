@@ -1,74 +1,12 @@
 # Peñita Mundial · IV Edición
 
-Porra del Mundial 2026 — Dashboard premium con clasificación, resultados en vivo, picks y sistema Versus.
+Porra del Mundial 2026. Dashboard premium, mobile-first, desplegable en Vercel.
 
-## Estructura
+## Estado actual
 
-```
-app/
-  page.tsx              → Home (countdown, podio, mini porra)
-  clasificacion/        → Ranking general + detalle modal
-  resultados/           → Partidos por fase + bracket eliminatorias
-  mi-club/              → Login + zona privada con tabs
-  versus/               → Comparativa cara a cara
-  api/results/fixtures/ → Proxy a API-Football (server-only)
-components/
-  auth-provider.tsx     → Contexto de autenticación
-  bottom-nav.tsx        → Navegación inferior
-  ui.tsx                → Flag, GroupBadge, Countdown, etc.
-lib/
-  data.ts               → Tipos, grupos oficiales, mock data, scoring
-  flags.ts              → Mapeo país → imagen de bandera
-public/flags/           → 48 banderas PNG + logo
-```
+La app funciona **out-of-the-box con datos demo deterministas** incluidos en el proyecto. No necesita CSV, Excel ni base de datos externa para arrancar.
 
-## Despliegue en Vercel
-
-### Opción 1 — Git + Vercel (recomendado)
-
-1. **Sube el proyecto a GitHub/GitLab:**
-   ```bash
-   cd penita-mundial
-   git init
-   git add .
-   git commit -m "Initial commit"
-   git remote add origin https://github.com/TU_USUARIO/penita-mundial.git
-   git push -u origin main
-   ```
-
-2. **Conecta en Vercel:**
-   - Ve a [vercel.com/new](https://vercel.com/new)
-   - Importa el repositorio
-   - Vercel detectará Next.js automáticamente
-   - Click en **Deploy**
-
-3. **Configura variables de entorno (opcional):**
-   - En Vercel → Settings → Environment Variables
-   - Añade `API_SPORTS_KEY` con tu clave de api-sports.io
-
-### Opción 2 — Vercel CLI
-
-```bash
-# Instala Vercel CLI
-npm i -g vercel
-
-# Desde la raíz del proyecto
-cd penita-mundial
-npm install
-vercel
-
-# Para producción
-vercel --prod
-```
-
-### Opción 3 — Drag & Drop
-
-```bash
-cd penita-mundial
-npm install
-npm run build
-# Sube la carpeta .next/standalone a Vercel
-```
+Los resultados de partidos pueden enriquecerse opcionalmente conectando la API de API-Football.
 
 ## Desarrollo local
 
@@ -78,23 +16,64 @@ npm run dev
 # → http://localhost:3000
 ```
 
-**Login de prueba:** `Carlos_M` (o cualquier usuario de mock) con cualquier contraseña.
+**Login de prueba:** `Carlos_M` (o cualquier usuario del dataset demo) con cualquier contraseña.
 
-## API de Resultados
+## Despliegue en Vercel
 
-La app está preparada para consumir API-Football (api-sports.io):
-- El proxy en `/api/results/fixtures` mantiene la API key en servidor
-- Si no hay API key, devuelve datos mock
-- La normalización de nombres (ej: "Netherlands" → "Países Bajos") es automática
+### Opción 1 — Git + Vercel (recomendada)
 
-## Datos Oficiales
+```bash
+git init && git add . && git commit -m "Initial"
+git remote add origin <tu-repo>
+git push -u origin main
+```
 
-Los 12 grupos del Mundial 2026 están definidos en `lib/data.ts` como fuente de verdad.
-Las 48 banderas oficiales están en `public/flags/`.
+1. Ve a [vercel.com/new](https://vercel.com/new)
+2. Importa el repositorio — Vercel detecta Next.js automáticamente
+3. Deploy
 
-## Iteración Incremental
+### Opción 2 — Vercel CLI
 
-El proyecto está preparado para evolucionar sin rehacerse:
-- Modifica solo archivos afectados
-- Añade nuevas features en sus propias rutas/componentes
-- Los datos mock en `lib/data.ts` se pueden sustituir por API real
+```bash
+npx vercel       # preview
+npx vercel --prod # producción
+```
+
+## Variables de entorno (opcionales)
+
+| Variable | Descripción |
+|---|---|
+| `API_SPORTS_KEY` | Clave de [api-sports.io](https://www.api-football.com/) para resultados en vivo y sedes |
+
+Sin `API_SPORTS_KEY`, la app usa fixtures mock y lo indica discretamente en la UI.
+
+## Estructura
+
+```
+app/
+  page.tsx              → Home (countdown, podio, scoring)
+  clasificacion/        → Ranking + búsqueda + favoritos + detalle modal
+  resultados/           → Partidos con SWR + API + sedes por ciudad
+  mi-club/              → Login demo + zona privada con picks reales
+  versus/               → Comparativa con cálculos reales
+  api/results/fixtures/ → Proxy a API-Football (server-only)
+components/
+  auth-provider.tsx     → Sesión con localStorage
+  bottom-nav.tsx        → Navegación inferior
+  ui.tsx                → Flag, GroupBadge, Countdown, etc.
+lib/
+  data.ts               → Tipos, grupos oficiales, datos demo, scoring, helpers
+  flags.ts              → Mapeo país → bandera con emoji fallback
+  venues.ts             → Normalización de sedes + paleta regional
+public/flags/           → Banderas PNG
+```
+
+## Datos demo vs datos reales
+
+- **Clasificación, picks, favoritos**: datos demo generados determinísticamente en `lib/data.ts` con `seededRandom(42)`. Preparados para sustituirse por CSV/Excel real en el futuro.
+- **Resultados de partidos**: mock local si no hay API key; datos live de API-Football si la hay.
+- **Sedes/ciudades**: solo visibles cuando la API las proporciona. Si no hay API, no se fabrican ciudades.
+
+## Sistema de puntuación
+
+Centralizado en `lib/data.ts` → `SCORING`. Visible en la Home. Es la única fuente de verdad.
