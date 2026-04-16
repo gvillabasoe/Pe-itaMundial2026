@@ -6,7 +6,8 @@ import { AuthProvider } from "@/components/auth-provider";
 export const metadata: Metadata = {
   title: "Peñita Mundial · IV Edición",
   description: "Porra del Mundial 2026 — Seguimiento, clasificación y predicciones",
-  icons: { icon: "/flags/Logo_Porra_Peñita_Mundial_2026.webp" },
+  // Use a safe emoji favicon instead of broken webp with special chars
+  icons: { icon: "/favicon.ico" },
 };
 
 export const viewport: Viewport = {
@@ -15,11 +16,7 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">
       <body className="min-h-screen bg-bg-0 text-text-primary">

@@ -1,31 +1,19 @@
 import { NextResponse } from "next/server";
-import { normalizeName } from "@/lib/data";
-
-/**
- * GET /api/results/fixtures
- *
- * Proxy to API-Football (api-sports.io) for fixture data.
- * Keeps the API key server-side only.
- *
- * Query params:
- *   ?live=true       — fetch live matches only
- *   ?date=2026-06-11 — fetch by date
- *   ?season=2026     — defaults to 2026
- *   ?league=1        — FIFA World Cup league ID
- */
+import { normalizeName, FIXTURES } from "@/lib/data";
+import { normalizeCity } from "@/lib/venues";
 
 const API_BASE = "https://v3.football.api-sports.io";
-const WORLD_CUP_LEAGUE_ID = 1; // FIFA World Cup
+const WORLD_CUP_LEAGUE_ID = 1;
 
 export async function GET(request: Request) {
   const apiKey = process.env.API_SPORTS_KEY;
 
-  // If no API key configured, return mock data
+  // No API key → return mock fixtures
   if (!apiKey) {
     return NextResponse.json({
       source: "mock",
-      message: "API_SPORTS_KEY not configured. Returning mock data.",
-      fixtures: [],
+      message: "API_SPORTS_KEY no configurada. Datos demo.",
+      fixtures: FIXTURES,
     });
   }
 
@@ -40,53 +28,65 @@ export async function GET(request: Request) {
     if (date) endpoint += `&date=${date}`;
 
     const res = await fetch(endpoint, {
-      headers: {
-        "x-apisports-key": apiKey,
-      },
-      // Cache for 30 seconds for non-live, no cache for live
+      headers: { "x-apisports-key": apiKey },
       next: { revalidate: isLive ? 0 : 30 },
     });
 
     if (!res.ok) {
-      return NextResponse.json(
-        { error: "API request failed", status: res.status },
-        { status: res.status }
-      );
+      return NextResponse.json({ error: "API request failed", status: res.status }, { status: res.status });
     }
 
     const data = await res.json();
 
-    // Normalize team names to canonical Spanish names
-    const fixtures = (data.response || []).map((item: any) => ({
-      id: item.fixture?.id,
-      stage: item.league?.round?.includes("Group") ? "groups" : "knockout",
-      round: item.league?.round || "",
-      group: item.league?.round?.replace("Group ", "").charAt(0) || null,
-      homeTeam: normalizeName(item.teams?.home?.name || ""),
-      awayTeam: normalizeName(item.teams?.away?.name || ""),
-      status: mapStatus(item.fixture?.status?.short),
-      kickoff: item.fixture?.date,
-      minute: item.fixture?.status?.elapsed,
-      score: {
-        home: item.goals?.home,
-        away: item.goals?.away,
-      },
-      goals: (item.events || [])
-        .filter((e: any) => e.type === "Goal")
-        .map((e: any) => ({
-          player: e.player?.name || "Desconocido",
-          minute: e.time?.elapsed || 0,
-          team: e.team?.id === item.teams?.home?.id ? "home" : "away",
-        })),
-    }));
+    const fixtures = (data.response || []).map((item: Record<string, unknown>) => {
+      const fixture = item.fixture as Record<string, unknown> | undefined;
+      const league = item.league as Record<string, unknown> | undefined;
+      const teams = item.teams as Record<string, Record<string, unknown>> | undefined;
+      const goals = item.goals as Record<string, unknown> | undefined;
+      const events = item.events as Array<Record<string, unknown>> | undefined;
+      const venue = (fixture as Record<string, unknown>)?.venue as Record<string, unknown> | undefined;
+      const status = (fixture as Record<string, unknown>)?.status as Record<string, unknown> | undefined;
+
+      // Extract and normalize city
+      const rawCity = venue?.city as string | undefined;
+      const city = normalizeCity(rawCity || null);
+
+      const round = (league?.round as string) || "";
+
+      return {
+        id: fixture?.id,
+        stage: round.includes("Group") ? "groups" : "knockout",
+        round,
+        group: round.includes("Group") ? round.replace("Group ", "").charAt(0) : null,
+        homeTeam: normalizeName((teams?.home?.name as string) || ""),
+        awayTeam: normalizeName((teams?.away?.name as string) || ""),
+        status: mapStatus(status?.short as string | undefined),
+        kickoff: fixture?.date,
+        minute: status?.elapsed as number | null,
+        score: {
+          home: (goals as Record<string, unknown>)?.home as number | null,
+          away: (goals as Record<string, unknown>)?.away as number | null,
+        },
+        city,
+        goals: (events || [])
+          .filter((e) => (e.type as string) === "Goal")
+          .map((e) => ({
+            player: ((e.player as Record<string, unknown>)?.name as string) || "Desconocido",
+            minute: ((e.time as Record<string, unknown>)?.elapsed as number) || 0,
+            team: (e.team as Record<string, unknown>)?.id === (teams?.home?.id) ? "home" : "away",
+          })),
+      };
+    });
 
     return NextResponse.json({ source: "live", fixtures });
   } catch (error) {
     console.error("API-Football error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch fixtures" },
-      { status: 500 }
-    );
+    // Fallback to mock on error
+    return NextResponse.json({
+      source: "mock",
+      message: "Error al conectar con la API. Datos demo.",
+      fixtures: FIXTURES,
+    });
   }
 }
 
