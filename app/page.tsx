@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Trophy, ChevronRight, Zap, Activity, BookOpen } from "lucide-react";
+import { Trophy, ChevronRight, Zap, Activity, BookOpen, Globe, TrendingUp, Swords } from "lucide-react";
 import { Flag, Countdown, SectionTitle, DemoBadge } from "@/components/ui";
 import { PARTICIPANTS, MINI_POLL, ACTIVITY, SCORING } from "@/lib/data";
+import Image from "next/image";
 
 export default function HomePage() {
   const [pollVote, setPollVote] = useState<string | null>(null);
@@ -22,8 +23,8 @@ export default function HomePage() {
             <h1 className="font-display text-[28px] font-black text-text-warm tracking-tight">Peñita Mundial</h1>
             <p className="text-xs text-gold font-semibold tracking-widest uppercase">IV Edición</p>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-bg-4 flex items-center justify-center border border-gold/20">
-            <Trophy size={24} className="text-gold" />
+          <div className="w-12 h-12 rounded-xl overflow-hidden bg-bg-4 flex items-center justify-center border border-gold/20">
+            <Image src="/flags/Logo_Porra_Peñita_Mundial_2026.webp" alt="Peñita Mundial" width={44} height={44} className="object-contain" />
           </div>
         </div>
       </div>
@@ -41,6 +42,25 @@ export default function HomePage() {
         <p className="text-sm text-text-muted mb-0.5">México vs Sudáfrica</p>
         <p className="text-[11px] text-gold mb-3">11 junio 2026 · 21:00 (Madrid)</p>
         <Countdown target="2026-06-11T19:00:00Z" />
+      </div>
+
+      {/* Quick access cards — Mundial + Probabilidades + Versus */}
+      <div className="grid grid-cols-3 gap-2 mb-4 animate-fade-in" style={{ animationDelay: "0.05s" }}>
+        <Link href="/mundial-2026" className="card !p-3 text-center no-underline hover:!border-gold/20 transition-all">
+          <Globe size={20} className="mx-auto mb-1.5 text-success" />
+          <p className="text-[11px] font-semibold text-text-warm">Mundial</p>
+          <p className="text-[9px] text-text-muted">104 partidos</p>
+        </Link>
+        <Link href="/probabilidades" className="card !p-3 text-center no-underline hover:!border-gold/20 transition-all">
+          <TrendingUp size={20} className="mx-auto mb-1.5 text-danger" />
+          <p className="text-[11px] font-semibold text-text-warm">En vivo</p>
+          <p className="text-[9px] text-text-muted">Probabilidades</p>
+        </Link>
+        <Link href="/versus" className="card !p-3 text-center no-underline hover:!border-gold/20 transition-all">
+          <Swords size={20} className="mx-auto mb-1.5 text-accent-versus" />
+          <p className="text-[11px] font-semibold text-text-warm">Versus</p>
+          <p className="text-[9px] text-text-muted">Cara a cara</p>
+        </Link>
       </div>
 
       {/* Podium */}
@@ -105,7 +125,6 @@ export default function HomePage() {
       <div className="animate-fade-in mb-6" style={{ animationDelay: "0.4s" }}>
         <SectionTitle icon={BookOpen} accent="#D9B449">Sistema de puntuación</SectionTitle>
 
-        {/* Partidos */}
         <div className="card mb-2">
           <h3 className="font-display text-sm font-bold text-text-warm mb-2">Partidos</h3>
           <div className="space-y-1.5">
@@ -114,7 +133,6 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Partido doble */}
         <div className="card mb-2">
           <h3 className="font-display text-sm font-bold text-text-warm mb-2">Partido doble <span className="text-[10px] font-normal text-text-muted">(1 por grupo)</span></h3>
           <div className="space-y-1.5">
@@ -123,13 +141,11 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Fase de grupos */}
         <div className="card mb-2">
           <h3 className="font-display text-sm font-bold text-text-warm mb-2">Fase de grupos</h3>
           <ScoringRow label="Posición final acertada en grupo" pts={SCORING.posicionGrupo} note="Por cada posición" />
         </div>
 
-        {/* Eliminatorias */}
         <div className="card mb-2">
           <h3 className="font-display text-sm font-bold text-text-warm mb-2">Eliminatorias</h3>
           <div className="space-y-1.5">
@@ -141,7 +157,6 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Posiciones finales */}
         <div className="card mb-2">
           <h3 className="font-display text-sm font-bold text-text-warm mb-2">Posiciones finales</h3>
           <div className="space-y-1.5">
@@ -151,7 +166,6 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Especiales */}
         <div className="card mb-2">
           <h3 className="font-display text-sm font-bold text-text-warm mb-2">Especiales</h3>
           <div className="space-y-1.5">

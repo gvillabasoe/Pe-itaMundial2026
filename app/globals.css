@@ -19,7 +19,6 @@ body {
 ::-webkit-scrollbar-track { background: #07090D; }
 ::-webkit-scrollbar-thumb { background: #12171D; border-radius: 2px; }
 
-/* Utility layers */
 @layer components {
   .card {
     @apply rounded-[14px] border border-white/5 p-4 transition-all;
@@ -84,4 +83,17 @@ body {
     border-top: 1px solid rgba(255,255,255,0.06);
     padding: 6px 0 env(safe-area-inset-bottom, 6px);
   }
+}
+
+/* Recharts tooltip override for dark theme */
+.recharts-tooltip-wrapper {
+  outline: none !important;
+}
+
+/* Spin animation for loading */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.animate-spin {
+  animation: spin 1s linear infinite;
 }
