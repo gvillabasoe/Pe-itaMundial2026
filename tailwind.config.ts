@@ -1,6 +1,7 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
+  darkMode: "class",
   content: [
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -14,18 +15,18 @@ const config: Config = {
       },
       colors: {
         bg: {
-          0: "#050608",
-          1: "#06070A",
-          2: "#07090D",
-          3: "#0B0B0B",
-          4: "#0D1014",
-          5: "#101216",
-          6: "#12171D",
+          0: "rgb(var(--bg-0) / <alpha-value>)",
+          1: "rgb(var(--bg-1) / <alpha-value>)",
+          2: "rgb(var(--bg-2) / <alpha-value>)",
+          3: "rgb(var(--bg-3) / <alpha-value>)",
+          4: "rgb(var(--bg-4) / <alpha-value>)",
+          5: "rgb(var(--bg-5) / <alpha-value>)",
+          6: "rgb(var(--bg-6) / <alpha-value>)",
         },
         text: {
-          primary: "#F6F7FB",
-          warm: "#FFFAF0",
-          muted: "#98A3B8",
+          primary: "rgb(var(--text-primary) / <alpha-value>)",
+          warm: "rgb(var(--text-warm) / <alpha-value>)",
+          muted: "rgb(var(--text-muted) / <alpha-value>)",
         },
         gold: {
           DEFAULT: "#D4AF37",
