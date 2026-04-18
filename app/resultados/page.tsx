@@ -2,451 +2,450 @@
 
 import { useState, useMemo } from "react";
 import useSWR from "swr";
-import {
-  Clock,
-  MapPin,
-  Search,
-  Wifi,
-  WifiOff,
-  AlertCircle,
-  ChevronDown,
-  ChevronUp,
-} from "lucide-react";
-import { Flag, EmptyState } from "@/components/ui";
-import {
-  WORLD_CUP_MATCHES,
-  STAGE_LABELS,
-  STAGE_ORDER,
-  type WorldCupMatch,
-  type MatchStage,
-} from "@/lib/worldcup/schedule";
-import {
-  ALL_HOST_CITIES,
-  REGION_LABELS,
-  REGION_PALETTES,
-  getCityBgColor,
-  getCityColor,
-  getZoneForCity,
-  type Zone,
-} from "@/lib/config/regions";
-import {
-  getStatusGroup,
-  getStatusLabel,
-  shouldShowScore,
-} from "@/lib/config/match-status";
+import { ChevronDown, ChevronUp, Clock, MapPin, Wifi, WifiOff, AlertCircle } from "lucide-react";
+import { Flag, GroupBadge, EmptyState } from "@/components/ui";
+import { FIXTURES, KNOCKOUT_ROUNDS } from "@/lib/data";
+import type { Fixture } from "@/lib/data";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+// ─── Status helpers ──────────────────────────────────
 
-interface ApiFixture {
-  id: number | string;
+const STATUS_LABELS: Record<string, string> = {
+  NS: "Programado",
+  "1H": "1ª parte",
+  HT: "Descanso",
+  "2H": "2ª parte",
+  ET: "Prórroga",
+  P: "Penaltis",
+  FT: "Finalizado",
+  AET: "Final (prórroga)",
+  PEN: "Final (penaltis)",
+  PST: "Aplazado",
+  CANC: "Cancelado",
+  SUSP: "Suspendido",
+};
+
+function statusGroup(s: string | undefined): "scheduled" | "live" | "halftime" | "finished" | "other" {
+  if (!s || s === "NS" || s === "TBD") return "scheduled";
+  if (["1H", "2H", "ET", "P"].includes(s)) return "live";
+  if (s === "HT") return "halftime";
+  if (["FT", "AET", "PEN", "AWD", "WO"].includes(s)) return "finished";
+  return "other";
+}
+
+function showScore(status: string | undefined, home: number | null, away: number | null): boolean {
+  if (home === null || away === null) return false;
+  const g = statusGroup(status);
+  return g === "live" || g === "halftime" || g === "finished";
+}
+
+// ─── Types ───────────────────────────────────────────
+
+interface LiveFixture {
+  id: string | number;
   status: string;
   kickoff?: string;
   minute?: number | null;
   homeTeam: string;
   awayTeam: string;
+  group?: string;
   score: { home: number | null; away: number | null };
   city?: string | null;
 }
 
 interface ApiResponse {
   source: "live" | "mock";
-  fixtures?: ApiFixture[];
+  fixtures?: LiveFixture[];
   message?: string;
 }
 
-/**
- * Unified Resultados + Mundial screen.
- * Base: full 104-match calendar (source of truth).
- * Enrichment: live state from /api/results/fixtures joined by match id.
- */
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
+// ─── Page ────────────────────────────────────────────
+
 export default function ResultadosPage() {
-  const [stageFilter, setStageFilter] = useState<MatchStage | "all">("all");
-  const [zoneFilter, setZoneFilter] = useState<Zone | "all">("all");
-  const [cityFilter, setCityFilter] = useState("all");
-  const [search, setSearch] = useState("");
-  const [expanded, setExpanded] = useState<MatchStage | null>("group");
+  const [expanded, setExpanded] = useState<string | null>("j1");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [phaseFilter, setPhaseFilter] = useState("all");
 
   const { data, error, isLoading } = useSWR<ApiResponse>(
     "/api/results/fixtures",
     fetcher,
-    { refreshInterval: 30000, revalidateOnFocus: true }
+    { refreshInterval: 30_000, revalidateOnFocus: true }
   );
 
   const isLive = data?.source === "live";
+
+  // Build a map id → live fixture for easy lookup
   const liveById = useMemo(() => {
-    const map = new Map<number, ApiFixture>();
+    const map = new Map<string, LiveFixture>();
     if (isLive && data?.fixtures) {
       for (const f of data.fixtures) {
-        const numId = typeof f.id === "number" ? f.id : parseInt(String(f.id), 10);
-        if (!Number.isNaN(numId)) map.set(numId, f);
+        map.set(String(f.id), f);
       }
     }
     return map;
   }, [isLive, data]);
 
-  const filtered = useMemo(() => {
-    let matches = [...WORLD_CUP_MATCHES];
-    if (stageFilter !== "all") matches = matches.filter((m) => m.stage === stageFilter);
-    if (zoneFilter !== "all") matches = matches.filter((m) => m.zone === zoneFilter);
-    if (cityFilter !== "all") matches = matches.filter((m) => m.hostCity === cityFilter);
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      matches = matches.filter(
-        (m) =>
-          m.homeTeam.toLowerCase().includes(q) ||
-          m.awayTeam.toLowerCase().includes(q) ||
-          m.hostCity.toLowerCase().includes(q) ||
-          String(m.id) === q
-      );
+  // For "live" source, use API fixtures; otherwise fall back to static FIXTURES
+  const allFixtures: Fixture[] = useMemo(() => {
+    if (isLive && data?.fixtures && data.fixtures.length > 0) {
+      return data.fixtures.map((f) => ({
+        id: String(f.id),
+        stage: "groups" as const,
+        round: f.group ? `Jornada 1` : "Jornada 1",
+        group: f.group,
+        homeTeam: f.homeTeam,
+        awayTeam: f.awayTeam,
+        status: (f.status as "NS" | "LIVE" | "FT") || "NS",
+        kickoff: f.kickoff || new Date().toISOString(),
+        minute: f.minute ?? null,
+        score: f.score,
+        goals: [],
+      }));
     }
-    return matches;
-  }, [stageFilter, zoneFilter, cityFilter, search]);
+    return FIXTURES;
+  }, [isLive, data]);
 
-  const groupedByStage = useMemo(() => {
-    const groups: Partial<Record<MatchStage, WorldCupMatch[]>> = {};
-    for (const m of filtered) {
-      if (!groups[m.stage]) groups[m.stage] = [];
-      groups[m.stage]!.push(m);
-    }
+  const toggle = (key: string) => setExpanded(expanded === key ? null : key);
+
+  const jornadaFixtures = (j: number) =>
+    allFixtures.filter((f) => f.round === `Jornada ${j}`);
+
+  const groupedByGroup = (fixtures: Fixture[]) => {
+    const groups: Record<string, Fixture[]> = {};
+    fixtures.forEach((f) => {
+      const g = f.group || "?";
+      if (!groups[g]) groups[g] = [];
+      groups[g].push(f);
+    });
     return groups;
-  }, [filtered]);
+  };
 
-  const toggleStage = (s: MatchStage) => setExpanded(expanded === s ? null : s);
-
-  const zoneOptions: { key: Zone | "all"; label: string; color?: string }[] = [
-    { key: "all", label: "Todas" },
-    { key: "west", label: REGION_LABELS.west, color: REGION_PALETTES.west.primary },
-    { key: "central", label: REGION_LABELS.central, color: REGION_PALETTES.central.primary },
-    { key: "east", label: REGION_LABELS.east, color: REGION_PALETTES.east.primary },
-  ];
+  const showGroups = phaseFilter === "all" || phaseFilter === "groups";
+  const showKO = phaseFilter === "all" || phaseFilter === "ko";
 
   return (
     <div className="px-4 pt-4 max-w-[640px] mx-auto">
+      {/* Header */}
       <div className="animate-fade-in mb-4 flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl font-extrabold text-text-warm mb-0.5">
             Resultados
           </h1>
-          <p className="text-xs text-text-muted">Mundial 2026 · 104 partidos</p>
+          <p className="text-xs text-text-muted">Partidos del Mundial 2026</p>
         </div>
-        <ConnectionBadge isLive={isLive} isLoading={isLoading} hasError={!!error} />
+        {/* Connection status indicator */}
+        {isLoading && (
+          <span className="inline-flex items-center gap-1 text-[10px] text-text-muted/50">
+            <Wifi size={12} /> Cargando…
+          </span>
+        )}
+        {!isLoading && isLive && (
+          <span className="inline-flex items-center gap-1 text-[10px] text-success">
+            <Wifi size={12} /> En vivo
+          </span>
+        )}
+        {!isLoading && !isLive && !error && (
+          <span className="inline-flex items-center gap-1 text-[10px] text-text-muted/50">
+            <WifiOff size={12} /> Calendario
+          </span>
+        )}
+        {error && (
+          <span className="inline-flex items-center gap-1 text-[10px] text-danger">
+            <AlertCircle size={12} /> Sin conexión
+          </span>
+        )}
       </div>
 
-      <div className="relative mb-2.5">
-        <Search
-          size={16}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
-          aria-hidden="true"
-        />
-        <input
-          className="input-field !pl-9"
-          placeholder="Buscar equipo, ciudad o nº partido..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          aria-label="Buscar partido"
-        />
-      </div>
-
-      <div className="flex gap-1 mb-2.5 overflow-x-auto pb-1">
-        <button
-          className={`pill !px-2.5 !py-1 ${stageFilter === "all" ? "active" : ""}`}
-          onClick={() => setStageFilter("all")}
-        >
-          Todos
-        </button>
-        {STAGE_ORDER.map((s) => (
+      {/* Status Filters */}
+      <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1">
+        {[
+          { key: "all", label: "Todos" },
+          { key: "ns", label: "Programados" },
+          { key: "live", label: "En directo" },
+          { key: "ft", label: "Finalizados" },
+        ].map((f) => (
           <button
-            key={s}
-            className={`pill !px-2.5 !py-1 ${stageFilter === s ? "active" : ""}`}
-            onClick={() => setStageFilter(s)}
+            key={f.key}
+            className={`pill ${statusFilter === f.key ? "active" : ""}`}
+            onClick={() => setStatusFilter(f.key)}
           >
-            {STAGE_LABELS[s]}
+            {f.label}
           </button>
         ))}
       </div>
 
-      <div className="flex gap-1 mb-2.5">
-        {zoneOptions.map((z) => (
+      {/* Phase Filters */}
+      <div className="flex gap-1.5 mb-4">
+        {[
+          { key: "all", label: "Todos" },
+          { key: "groups", label: "Grupos" },
+          { key: "ko", label: "Eliminatorias" },
+        ].map((f) => (
           <button
-            key={z.key}
-            className={`pill !px-2.5 !py-1 ${zoneFilter === z.key ? "active" : ""}`}
-            onClick={() => {
-              setZoneFilter(z.key);
-              setCityFilter("all");
-            }}
-            style={
-              zoneFilter === z.key && z.color
-                ? {
-                    background: `${z.color}22`,
-                    color: z.color,
-                    borderColor: z.color,
-                  }
-                : {}
-            }
+            key={f.key}
+            className={`pill ${phaseFilter === f.key ? "active" : ""}`}
+            onClick={() => setPhaseFilter(f.key)}
           >
-            {z.label}
+            {f.label}
           </button>
         ))}
       </div>
 
-      {zoneFilter !== "all" && (
-        <div className="flex gap-1 mb-3 overflow-x-auto pb-1">
-          <button
-            className={`pill !px-2 !py-0.5 text-[10px] ${cityFilter === "all" ? "active" : ""}`}
-            onClick={() => setCityFilter("all")}
-          >
-            Todas
-          </button>
-          {ALL_HOST_CITIES.filter((c) => getZoneForCity(c) === zoneFilter).map((c) => (
-            <button
-              key={c}
-              className={`pill !px-2 !py-0.5 text-[10px] ${cityFilter === c ? "active" : ""}`}
-              onClick={() => setCityFilter(c)}
-            >
-              {c}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* Group Jornadas */}
+      {showGroups &&
+        [1, 2, 3].map((j) => {
+          const key = `j${j}`;
+          const open = expanded === key;
+          const fixtures = jornadaFixtures(j);
 
-      <p className="text-[11px] text-text-muted mb-3">{filtered.length} partidos</p>
+          // Apply status filter
+          const filteredFixtures = statusFilter === "all" ? fixtures : fixtures.filter((f) => {
+            const g = statusGroup(f.status);
+            if (statusFilter === "ns") return g === "scheduled";
+            if (statusFilter === "live") return g === "live" || g === "halftime";
+            if (statusFilter === "ft") return g === "finished";
+            return true;
+          });
 
-      {isLoading && !data && (
-        <div className="card text-center py-6 text-text-muted animate-fade-in" role="status">
-          <div className="w-6 h-6 border-2 border-gold/30 border-t-gold rounded-full animate-spin mx-auto mb-2" />
-          <p className="text-xs">Conectando con servidor…</p>
-        </div>
-      )}
+          if (filteredFixtures.length === 0) return null;
+          const grouped = groupedByGroup(filteredFixtures);
 
-      {search.trim() ? (
-        <div className="animate-fade-in">
-          {filtered.length === 0 ? (
-            <EmptyState text={`Sin resultados para "${search}"`} icon={Search} />
-          ) : (
-            filtered.map((m) => (
-              <MatchCard key={m.id} match={m} live={liveById.get(m.id)} />
-            ))
-          )}
-        </div>
-      ) : (
-        STAGE_ORDER.map((stage) => {
-          const matches = groupedByStage[stage];
-          if (!matches || matches.length === 0) return null;
-          const isOpen = expanded === stage;
-          const isFinal = stage === "final";
           return (
-            <div key={stage} className="mb-2 animate-fade-in">
+            <div key={key} className="mb-2 animate-fade-in">
               <button
-                onClick={() => toggleStage(stage)}
-                aria-expanded={isOpen}
-                className="flex items-center justify-between w-full py-3 px-3.5 rounded-[10px] cursor-pointer bg-bg-4 border border-text-muted/10"
-                style={
-                  isFinal
-                    ? {
-                        background: "rgba(212,175,55,0.06)",
-                        border: "1px solid rgba(212,175,55,0.2)",
-                        color: "#FFD87A",
-                      }
-                    : undefined
-                }
+                onClick={() => toggle(key)}
+                className="flex items-center justify-between w-full py-3 px-3.5 rounded-[10px] bg-bg-4 border border-white/[0.06] cursor-pointer text-text-warm"
               >
-                <span className="font-display text-[15px] font-bold text-text-warm">
-                  {STAGE_LABELS[stage]}{" "}
-                  <span className="text-[11px] font-normal text-text-muted ml-1">
-                    ({matches.length})
-                  </span>
+                <span className="font-display text-[15px] font-bold">
+                  Fase de Grupos — Jornada {j}
                 </span>
-                {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                {open ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
               </button>
-              {isOpen && (
-                <div className="mt-1.5 flex flex-col gap-0.5">
-                  {matches.map((m) => (
-                    <MatchCard key={m.id} match={m} live={liveById.get(m.id)} />
+              {open && (
+                <div className="mt-1.5 flex flex-col gap-1.5">
+                  {Object.entries(grouped).map(([g, matches]) => (
+                    <div key={g}>
+                      <div className="mb-1 mt-1">
+                        <GroupBadge group={g} />
+                      </div>
+                      {matches.map((m) => (
+                        <MatchCard
+                          key={m.id}
+                          match={m}
+                          liveData={liveById.get(String(m.id))}
+                        />
+                      ))}
+                    </div>
                   ))}
                 </div>
               )}
             </div>
           );
-        })
-      )}
+        })}
+
+      {/* Knockout Rounds */}
+      {showKO &&
+        KNOCKOUT_ROUNDS.map((round, ri) => {
+          const key = `ko${ri}`;
+          const open = expanded === key;
+          const isFinal = round.name === "Final";
+
+          return (
+            <div key={key} className="mb-2 animate-fade-in">
+              <button
+                onClick={() => toggle(key)}
+                className="flex items-center justify-between w-full py-3 px-3.5 rounded-[10px] cursor-pointer"
+                style={{
+                  background: isFinal ? "rgba(212,175,55,0.06)" : "#0D1014",
+                  border: isFinal
+                    ? "1px solid rgba(212,175,55,0.2)"
+                    : "1px solid rgba(255,255,255,0.06)",
+                  color: isFinal ? "#FFD87A" : "#FFFAF0",
+                }}
+              >
+                <span className="font-display text-[15px] font-bold">
+                  {round.name}
+                </span>
+                {open ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+              </button>
+              {open && (
+                <div className="mt-1.5 flex flex-col gap-1">
+                  {round.matches.map((m, mi) => (
+                    <KnockoutCard key={mi} matchStr={m} isFinal={isFinal} />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
 
       {!isLoading && !isLive && !error && (
-        <p className="text-[10px] text-text-muted/60 text-center mt-4">
-          Datos en vivo disponibles cuando empiece el torneo. Mostrando calendario oficial.
+        <p className="text-[10px] text-text-muted/50 text-center mt-4">
+          Mostrando calendario oficial. Los resultados en vivo aparecerán cuando empiece el torneo.
         </p>
       )}
     </div>
   );
 }
 
-function ConnectionBadge({
-  isLive,
-  isLoading,
-  hasError,
-}: {
-  isLive: boolean;
-  isLoading: boolean;
-  hasError: boolean;
-}) {
-  if (hasError) {
-    return (
-      <span className="inline-flex items-center gap-1 text-[10px] text-danger" role="status">
-        <AlertCircle size={12} /> Sin conexión
-      </span>
-    );
-  }
-  if (isLoading) {
-    return (
-      <span className="inline-flex items-center gap-1 text-[10px] text-text-muted/50" role="status">
-        <Wifi size={12} /> Cargando…
-      </span>
-    );
-  }
-  if (isLive) {
-    return (
-      <span className="inline-flex items-center gap-1 text-[10px] text-success" role="status">
-        <Wifi size={12} aria-hidden="true" /> En vivo
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 text-[10px] text-text-muted/50" role="status">
-      <WifiOff size={12} aria-hidden="true" /> Calendario
-    </span>
-  );
-}
+// ─── Match Card ──────────────────────────────────────
 
 function MatchCard({
   match,
-  live,
+  liveData,
 }: {
-  match: WorldCupMatch;
-  live: ApiFixture | undefined;
+  match: Fixture;
+  liveData?: LiveFixture;
 }) {
+  const status = liveData?.status ?? match.status ?? "NS";
+  const sg = statusGroup(status);
+  const scoreVisible = showScore(status, match.score.home, match.score.away);
+
+  const kickoff = new Date(match.kickoff);
+  const timeStr = kickoff.toLocaleTimeString("es-ES", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Madrid",
+  });
+  const dateStr = kickoff.toLocaleDateString("es-ES", {
+    day: "numeric",
+    month: "short",
+    timeZone: "Europe/Madrid",
+  });
+
   const isSpain = match.homeTeam === "España" || match.awayTeam === "España";
-  const cityColor = getCityColor(match.hostCity);
-  const cityBg = getCityBgColor(match.hostCity);
-
-  const status = live?.status ?? "NS";
-  const statusGroup = getStatusGroup(status);
-  const label = getStatusLabel(status);
-  const scoreVisible = shouldShowScore(status, live?.score.home, live?.score.away);
-
-  const kickoff = live?.kickoff ? new Date(live.kickoff) : null;
-  const kickoffTime = kickoff
-    ? kickoff.toLocaleTimeString("es-ES", {
-        hour: "2-digit",
-        minute: "2-digit",
-        timeZone: "Europe/Madrid",
-      })
-    : null;
-  const kickoffDate = kickoff
-    ? kickoff.toLocaleDateString("es-ES", {
-        day: "numeric",
-        month: "short",
-        timeZone: "Europe/Madrid",
-      })
-    : null;
 
   const statusBadge = (() => {
-    switch (statusGroup) {
-      case "live":
-        return (
-          <span className="badge badge-red !py-0.5" aria-label="En juego">
-            <span className="w-1.5 h-1.5 rounded-full bg-danger animate-live-pulse inline-block" />
-            {label}
-            {typeof live?.minute === "number" && ` · ${live.minute}'`}
-          </span>
-        );
-      case "halftime":
-        return <span className="badge badge-amber !py-0.5">Descanso</span>;
-      case "finished":
-        return <span className="badge badge-muted !py-0.5">{label}</span>;
-      case "postponed":
-        return <span className="badge badge-amber !py-0.5">Aplazado</span>;
-      case "cancelled":
-        return <span className="badge badge-red !py-0.5">{label}</span>;
-      default:
-        return kickoffTime ? (
-          <span className="badge badge-green !py-0.5">
-            <Clock size={10} aria-hidden="true" /> {kickoffDate} · {kickoffTime}
-          </span>
-        ) : (
-          <span className="badge badge-muted !py-0.5">Programado</span>
-        );
-    }
+    if (sg === "live") return (
+      <span className="badge badge-red text-[10px]">
+        <span className="w-1.5 h-1.5 rounded-full bg-danger animate-live-pulse inline-block mr-1" />
+        En juego{liveData?.minute ? ` · ${liveData.minute}'` : ""}
+      </span>
+    );
+    if (sg === "halftime") return <span className="badge badge-amber text-[10px]">Descanso</span>;
+    if (sg === "finished") return <span className="badge badge-muted text-[10px]">{STATUS_LABELS[status] ?? "Finalizado"}</span>;
+    if (sg === "other") return <span className="badge badge-amber text-[10px]">{STATUS_LABELS[status] ?? status}</span>;
+    return (
+      <span className="badge badge-green text-[10px]">
+        <Clock size={10} /> {dateStr} · {timeStr}
+      </span>
+    );
   })();
 
   return (
-    <article
+    <div
       className="card !py-2.5 !px-3 mb-1"
-      style={{
-        borderLeft: `3px solid ${isSpain ? "#C1121F" : cityColor}`,
-      }}
+      style={isSpain ? { borderLeft: "3px solid #C1121F" } : undefined}
     >
-      <div className="flex items-center justify-between mb-1.5 gap-2">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="text-[10px] text-text-muted font-mono">#{match.id}</span>
-          {statusBadge}
+      {/* Top row: group badge + status */}
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center gap-1.5">
+          {match.group && <GroupBadge group={match.group} />}
         </div>
-        <span
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold whitespace-nowrap"
-          style={{
-            background: cityBg,
-            color: cityColor,
-            border: `1px solid ${cityColor}55`,
-          }}
-          aria-label={`Sede: ${match.hostCity}`}
-        >
-          <MapPin size={9} aria-hidden="true" /> {match.hostCity}
-        </span>
+        {statusBadge}
       </div>
 
+      {/* Match row */}
       <div className="flex items-center justify-center gap-2">
-        <div className="flex-1 text-right flex items-center justify-end gap-1.5 min-w-0">
-          <span
-            className={`text-xs font-medium truncate ${
-              isSpain && match.homeTeam === "España"
-                ? "text-text-warm font-semibold"
-                : ""
-            }`}
-          >
-            {match.homeTeam}
-          </span>
+        {/* Home: País → Bandera */}
+        <div className="flex-1 text-right flex items-center justify-end gap-1.5">
+          <span className="text-xs font-medium">{match.homeTeam}</span>
           <Flag country={match.homeTeam} size="sm" />
+        </div>
+
+        {/* Score / vs */}
+        <div
+          className="font-display text-sm font-bold rounded-md px-2.5 py-1 min-w-[50px] text-center"
+          style={{
+            background: sg === "live" || sg === "halftime"
+              ? "rgba(255,122,165,0.15)"
+              : "#07090D",
+            color: sg === "live" || sg === "halftime"
+              ? "#FF7AA5"
+              : scoreVisible
+              ? "#F6F7FB"
+              : "#98A3B8",
+          }}
+        >
+          {scoreVisible
+            ? `${match.score.home} - ${match.score.away}`
+            : "vs"}
+        </div>
+
+        {/* Away: Bandera → País */}
+        <div className="flex-1 text-left flex items-center gap-1.5">
+          <Flag country={match.awayTeam} size="sm" />
+          <span className="text-xs font-medium">{match.awayTeam}</span>
+        </div>
+      </div>
+
+      {/* City (if available from live data) */}
+      {liveData?.city && (
+        <div className="flex justify-center mt-1">
+          <span className="inline-flex items-center gap-1 text-[9px] text-text-muted">
+            <MapPin size={8} /> {liveData.city}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Knockout Card ───────────────────────────────────
+
+function KnockoutCard({
+  matchStr,
+  isFinal,
+}: {
+  matchStr: string;
+  isFinal: boolean;
+}) {
+  const [home, away] = matchStr.split(" vs ");
+  const isKnownCountry = (name: string) =>
+    !name.startsWith("G") && !name.startsWith("Ganador") && !name.startsWith("Perdedor") && !/^\d/.test(name);
+
+  const homeIsCountry = isKnownCountry(home);
+  const awayIsCountry = isKnownCountry(away);
+
+  return (
+    <div
+      className="card !py-2.5 !px-3"
+      style={{
+        border: isFinal ? "1px solid rgba(212,175,55,0.15)" : undefined,
+        background: isFinal ? "rgba(212,175,55,0.03)" : undefined,
+      }}
+    >
+      <div className="flex items-center justify-center gap-2">
+        {/* Home: País → Bandera */}
+        <div className="flex-1 text-right flex items-center justify-end gap-1.5">
+          <span className={`text-xs font-medium ${!homeIsCountry ? "text-text-muted" : ""}`}>
+            {home}
+          </span>
+          {homeIsCountry && <Flag country={home} size="sm" />}
         </div>
 
         <div
           className="font-display text-sm font-bold rounded-md px-2.5 py-1 min-w-[50px] text-center"
           style={{
-            background:
-              statusGroup === "live" || statusGroup === "halftime"
-                ? "rgba(255,122,165,0.15)"
-                : "rgb(var(--bg-2))",
-            color:
-              statusGroup === "live" || statusGroup === "halftime"
-                ? "#FF7AA5"
-                : scoreVisible
-                ? "rgb(var(--text-primary))"
-                : "rgb(var(--text-muted))",
+            background: isFinal ? "rgba(212,175,55,0.1)" : "#07090D",
+            color: isFinal ? "#D4AF37" : "#98A3B8",
           }}
         >
-          {scoreVisible ? `${live!.score.home} - ${live!.score.away}` : "vs"}
+          vs
         </div>
 
-        <div className="flex-1 text-left flex items-center gap-1.5 min-w-0">
-          <Flag country={match.awayTeam} size="sm" />
-          <span
-            className={`text-xs font-medium truncate ${
-              isSpain && match.awayTeam === "España"
-                ? "text-text-warm font-semibold"
-                : ""
-            }`}
-          >
-            {match.awayTeam}
+        {/* Away: Bandera → País */}
+        <div className="flex-1 text-left flex items-center gap-1.5">
+          {awayIsCountry && <Flag country={away} size="sm" />}
+          <span className={`text-xs font-medium ${!awayIsCountry ? "text-text-muted" : ""}`}>
+            {away}
           </span>
         </div>
       </div>
-    </article>
+      {(!homeIsCountry || !awayIsCountry) && (
+        <p className="text-center text-[10px] text-text-muted mt-1">Por definir</p>
+      )}
+    </div>
   );
 }

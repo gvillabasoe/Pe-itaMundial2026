@@ -2,18 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, BarChart3, Trophy, TrendingUp, Shield } from "lucide-react";
+import { Home, BarChart3, Trophy, Shield, Swords } from "lucide-react";
 
-/**
- * Bottom navigation. Resultados is the unified screen (Resultados + Mundial).
- * /mundial-2026 redirects to /resultados.
- */
 const NAV_ITEMS = [
   { href: "/", label: "Inicio", icon: Home },
   { href: "/clasificacion", label: "Ranking", icon: BarChart3 },
   { href: "/resultados", label: "Resultados", icon: Trophy },
-  { href: "/probabilidades", label: "En vivo", icon: TrendingUp },
   { href: "/mi-club", label: "Mi Club", icon: Shield },
+  { href: "/versus", label: "Versus", icon: Swords },
 ];
 
 export function BottomNav() {
@@ -25,8 +21,7 @@ export function BottomNav() {
         const isActive =
           item.href === "/"
             ? pathname === "/"
-            : pathname.startsWith(item.href) ||
-              (item.href === "/resultados" && pathname.startsWith("/mundial-2026"));
+            : pathname.startsWith(item.href);
 
         return (
           <Link
