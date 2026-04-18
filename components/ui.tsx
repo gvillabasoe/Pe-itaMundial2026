@@ -113,6 +113,24 @@ export function Flag({ country, size = "md", className }: FlagProps) {
   );
 }
 
+// ─── CountryWithFlag ────────────────────────────────
+
+export function CountryWithFlag({
+  country,
+  size = "sm",
+}: {
+  country: string;
+  size?: "sm" | "md";
+}) {
+  if (!country) return null;
+  return (
+    <span className="inline-flex items-center gap-1">
+      <Flag country={country} size={size} />
+      <span>{country}</span>
+    </span>
+  );
+}
+
 // ─── Group Badge ────────────────────────────────────
 
 export function GroupBadge({ group }: { group: string }) {
